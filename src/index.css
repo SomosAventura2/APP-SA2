@@ -46,8 +46,6 @@
 
   #root {
     @apply min-h-dvh;
-    /* Evita “rebote” horizontal al arrastrar en modo standalone iOS */
-    overscroll-behavior-x: none;
   }
 
   button,
@@ -73,13 +71,13 @@
     @apply rounded-[1.15rem] border border-white/[0.07] bg-gradient-to-br from-white/[0.07] to-white/[0.02] shadow-[0_20px_50px_-18px_rgba(0,0,0,0.55)] ring-1 ring-inset ring-white/[0.04] backdrop-blur-xl transition-[transform,box-shadow,border-color] duration-200 ease-out;
   }
 
-  /* Campos en tema oscuro */
+  /* Campos en tema oscuro (text-base = 16px: evita zoom al enfocar en Safari iOS) */
   .sa-field {
-    @apply w-full rounded-xl border border-white/[0.1] bg-slate-950/45 px-3 py-3 text-[15px] text-white outline-none transition-[border-color,box-shadow] placeholder:text-slate-500 focus:border-teal-400/40 focus:shadow-[0_0_0_3px_var(--sa-accent-dim)];
+    @apply w-full rounded-xl border border-white/[0.1] bg-slate-950/45 px-3 py-3 text-base text-white outline-none transition-[border-color,box-shadow] placeholder:text-slate-500 focus:border-teal-400/40 focus:shadow-[0_0_0_3px_var(--sa-accent-dim)];
   }
 
   .sa-input-search {
-    @apply w-full rounded-xl border border-white/[0.1] bg-slate-950/40 px-4 py-3.5 text-[15px] text-white shadow-inner shadow-black/30 outline-none backdrop-blur-sm placeholder:text-slate-500 focus:border-teal-400/45 focus:shadow-[0_0_0_3px_var(--sa-accent-dim)];
+    @apply w-full rounded-xl border border-white/[0.1] bg-slate-950/40 px-4 py-3.5 text-base text-white shadow-inner shadow-black/30 outline-none backdrop-blur-sm placeholder:text-slate-500 focus:border-teal-400/45 focus:shadow-[0_0_0_3px_var(--sa-accent-dim)];
   }
 
   .sa-btn-primary {
@@ -126,6 +124,17 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sa-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.94);
   }
 }
 
@@ -211,6 +220,10 @@
     animation: sa-toast-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
+  .sa-motion-toast-exit {
+    animation: sa-toast-out 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
   .sa-motion-backdrop {
     animation: sa-backdrop-in 0.22s ease-out both;
   }
@@ -277,4 +290,40 @@
         0 0 0 1px rgba(255, 255, 255, 0.06) inset;
     }
   }
+}
+
+/*
+ * iOS PWA / Safari: fuera de @layer para ganar a utilities (p. ej. text-sm en inputs).
+ * user-scalable=no en viewport limita zoom del usuario — documentado en index.html.
+ */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  min-height: 100dvh;
+  touch-action: manipulation;
+}
+
+#root {
+  min-height: 100dvh;
+  touch-action: manipulation;
+  overscroll-behavior-x: none;
+}
+
+html body #root input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+html body #root textarea,
+html body #root select {
+  font-size: 16px !important;
+  touch-action: manipulation;
+  line-height: 1.4;
+}
+
+button,
+a[href],
+[role='button'] {
+  touch-action: manipulation;
 }

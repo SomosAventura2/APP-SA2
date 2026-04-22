@@ -5,8 +5,10 @@ import { getCuposReserva, getReservaRutaId } from './reservas'
  * @param {string} rutaId
  */
 export function participantesPorRutaId(participantes, rutaId) {
+  if (rutaId == null || rutaId === '') return []
+  const id = String(rutaId)
   return (participantes || []).filter(
-    (p) => p.rutaId === rutaId || p.ruta_id === rutaId,
+    (p) => String(p.rutaId ?? p.ruta_id ?? '') === id,
   )
 }
 
@@ -16,10 +18,10 @@ export function participantesPorRutaId(participantes, rutaId) {
  * @param {string} rutaId
  */
 export function participantesPorReservaSorted(participantes, lider, rutaId) {
+  const rid = rutaId == null || rutaId === '' ? '' : String(rutaId)
   const list = (participantes || []).filter(
     (p) =>
-      p.lider === lider &&
-      (p.rutaId === rutaId || p.ruta_id === rutaId),
+      p.lider === lider && String(p.rutaId ?? p.ruta_id ?? '') === rid,
   )
   return list.slice().sort((a, b) =>
     String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es', {

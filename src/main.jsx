@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import './iosPwaLocks.js'
 import { NotifyProvider } from './context/NotifyContext.jsx'
 import './index.css'
 import App from './App.jsx'

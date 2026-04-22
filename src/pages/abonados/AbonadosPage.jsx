@@ -1,4 +1,11 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Coins,
+  FileText,
+  Trash2,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNotify } from '../../context/NotifyContext.jsx'
 import { useGestionRealtime } from '../../hooks/useGestionRealtime'
@@ -283,8 +290,13 @@ export default function AbonadosPage() {
   return (
     <section className="sa-page">
       <div className="sa-card mb-4 p-4 shadow-lg">
-        <h2 className="m-0 text-sm font-extrabold text-white">
-          💰 Resumen de abonados
+        <h2 className="m-0 flex items-center gap-2 text-sm font-extrabold text-white">
+          <Coins
+            className="h-4 w-4 shrink-0 text-amber-400/90"
+            strokeWidth={2}
+            aria-hidden
+          />
+          Resumen de abonados
         </h2>
         <div className="mt-3 grid grid-cols-3 gap-2">
           <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] px-2 py-3 text-center">
@@ -331,7 +343,7 @@ export default function AbonadosPage() {
             value={formLider}
             onChange={(e) => setFormLider(e.target.value)}
             placeholder="Líder"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
+            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-base text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
           />
           <input
             type="number"
@@ -341,14 +353,14 @@ export default function AbonadosPage() {
             value={formSaldo}
             onChange={(e) => setFormSaldo(e.target.value)}
             placeholder="Monto € a cargar"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
+            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-base text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
           />
           <input
             type="text"
             value={formNotas}
             onChange={(e) => setFormNotas(e.target.value)}
             placeholder="Notas (opcional)"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
+            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-base text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
           />
           <button
             type="submit"
@@ -392,7 +404,13 @@ export default function AbonadosPage() {
 
       {!loading && !error && filtrados.length === 0 ? (
         <div className="sa-card p-10 text-center">
-          <div className="text-4xl">💰</div>
+          <div className="flex justify-center">
+            <Coins
+              className="h-14 w-14 text-slate-600"
+              strokeWidth={1.25}
+              aria-hidden
+            />
+          </div>
           <p className="mt-3 text-sm text-slate-400">
             {search.trim()
               ? 'No hay abonados que coincidan.'
@@ -428,8 +446,24 @@ export default function AbonadosPage() {
                       €{saldo.toFixed(2)}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-500">
-                      <span>📅 {ultima}</span>
-                      {notas ? <span>📝 {notas}</span> : null}
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar
+                          className="h-3 w-3 shrink-0 opacity-80"
+                          strokeWidth={2}
+                          aria-hidden
+                        />
+                        {ultima}
+                      </span>
+                      {notas ? (
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          <FileText
+                            className="h-3 w-3 shrink-0 opacity-80"
+                            strokeWidth={2}
+                            aria-hidden
+                          />
+                          <span className="truncate">{notas}</span>
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
@@ -464,8 +498,9 @@ export default function AbonadosPage() {
                       type="button"
                       onClick={() => void eliminarAbonado(a.id, a.lider)}
                       className="rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-xs font-bold text-red-200"
+                      title="Eliminar abonado"
                     >
-                      🗑️
+                      <Trash2 className="h-4 w-4" strokeWidth={2} aria-hidden />
                     </button>
                   </div>
                 </div>

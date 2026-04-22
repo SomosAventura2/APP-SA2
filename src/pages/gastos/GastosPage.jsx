@@ -1,3 +1,4 @@
+import { Calendar, MapPin, Receipt, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNotify } from '../../context/NotifyContext.jsx'
 import { formatRutaDateShort } from '../../lib/formatDate'
@@ -227,12 +228,12 @@ export default function GastosPage() {
             value={concepto}
             onChange={(e) => setConcepto(e.target.value)}
             placeholder="Concepto (ej. combustible, alimentos)"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
+            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-base text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
           />
           <select
             value={nuevaRutaId}
             onChange={(e) => setNuevaRutaId(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none focus:border-emerald-500/40"
+            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-base text-white outline-none focus:border-emerald-500/40"
           >
             <option value="">Selecciona ruta</option>
             {rutasActivas.map((r) => (
@@ -250,7 +251,7 @@ export default function GastosPage() {
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             placeholder="Monto (Bs)"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
+            className="w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-base text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
             onKeyDown={(e) => {
               if (['e', 'E', '+'].includes(e.key)) e.preventDefault()
             }}
@@ -318,7 +319,13 @@ export default function GastosPage() {
 
       {!loading && !error && listaFiltrada.length === 0 ? (
         <div className="sa-card p-10 text-center shadow-xl shadow-black/25">
-          <div className="text-4xl drop-shadow-md">💸</div>
+          <div className="flex justify-center drop-shadow-md">
+            <Receipt
+              className="h-14 w-14 text-slate-500"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+          </div>
           <h3 className="mt-3 text-lg font-extrabold tracking-tight text-white">
             No hay gastos registrados
           </h3>
@@ -345,8 +352,22 @@ export default function GastosPage() {
                 <div className="min-w-0 flex-1">
                   <div className="font-bold text-white">{g.concepto}</div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-slate-400">
-                    <span>📍 {nombreRuta}</span>
-                    <span>📅 {formatGastoFecha(g.fecha)}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin
+                        className="h-3.5 w-3.5 shrink-0 text-slate-500"
+                        strokeWidth={2}
+                        aria-hidden
+                      />
+                      {nombreRuta}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar
+                        className="h-3.5 w-3.5 shrink-0 text-slate-500"
+                        strokeWidth={2}
+                        aria-hidden
+                      />
+                      {formatGastoFecha(g.fecha)}
+                    </span>
                     <span className="font-extrabold text-rose-400">
                       Bs {montoVal.toLocaleString('es-ES')}
                     </span>
@@ -359,7 +380,11 @@ export default function GastosPage() {
                   className="shrink-0 rounded-lg border border-rose-500/30 bg-rose-950/30 px-2 py-2 text-rose-200 transition-colors hover:bg-rose-950/50 disabled:opacity-50"
                   title="Eliminar gasto"
                 >
-                  {deletingId === g.id ? '…' : '🗑️'}
+                  {deletingId === g.id ? (
+                    '…'
+                  ) : (
+                    <Trash2 className="h-4 w-4" strokeWidth={2} aria-hidden />
+                  )}
                 </button>
               </li>
             )

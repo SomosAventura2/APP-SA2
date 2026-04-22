@@ -1,9 +1,31 @@
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import {
+  Banknote,
+  BarChart3,
+  BookOpen,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Circle,
+  ClipboardList,
+  Mountain,
+  TrendingDown,
+  User,
+  Users,
+  X,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import PersonHistorialModal from '../../components/PersonHistorialModal'
-import { useNotify } from '../../context/NotifyContext.jsx'
+import { createPortal } from 'react-dom'
 import { useGestionRealtime } from '../../hooks/useGestionRealtime'
 import { formatRutaDate } from '../../lib/formatDate'
+import {
+  SA_MODAL_BTN_CLOSE,
+  SA_MODAL_PANEL_SCROLL,
+  saModalBackdropClass,
+} from '../../lib/saModalLayout'
 import {
   calcularProfitNeto,
   calcularTotalDolares,
@@ -21,7 +43,6 @@ import {
   PRIMER_MES_INICIO,
 } from '../../lib/historialFinanzas'
 import { mapRuta } from '../../lib/rutas'
-import { getRutasPasadasParaHistorial } from '../../lib/rutasPasadasHistorial'
 import { calcularTotalesPorMoneda, normalizeReservas } from '../../lib/reservaCalcs'
 import { supabase } from '../../lib/supabase'
 import { getCuposReserva, getReservaRutaId } from '../../lib/reservas'
@@ -62,7 +83,6 @@ function fmtBs(n) {
 }
 
 export default function HistorialPage() {
-  const { toast } = useNotify()
   const [rutas, setRutas] = useState([])
   const [reservas, setReservas] = useState([])
   const [participantes, setParticipantes] = useState([])
@@ -74,14 +94,6 @@ export default function HistorialPage() {
 
   const [statsOpen, setStatsOpen] = useState(false)
   const [statsNav, setStatsNav] = useState({ semanaOffset: 0, mesOffset: 0 })
-
-  const [addOpen, setAddOpen] = useState(false)
-  const [addNombre, setAddNombre] = useState('')
-  const [addSelected, setAddSelected] = useState(() => new Set())
-  const [addBusy, setAddBusy] = useState(false)
-  const [addMsg, setAddMsg] = useState('')
-  const [personaHistorialInput, setPersonaHistorialInput] = useState('')
-  const [historialPersonaNombre, setHistorialPersonaNombre] = useState(null)
 
   const refreshSilent = useCallback(async () => {
     try {
@@ -97,6 +109,15 @@ export default function HistorialPage() {
   }, [])
 
   useGestionRealtime(refreshSilent, 'historial')
+
+  useEffect(() => {
+    if (!statsOpen) return
+    function onKey(e) {
+      if (e.key === 'Escape') setStatsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [statsOpen])
 
   const loadAll = useCallback(async () => {
     const b = await fetchHistorialBundle()
@@ -161,8 +182,6 @@ export default function HistorialPage() {
       })
   }, [rutas, search])
 
-  const rutasParaAlta = useMemo(() => getRutasPasadasParaHistorial(rutas), [rutas])
-
   const statsSemana = useMemo(() => {
     const { inicio, fin } = getInicioFinSemanaConOffset(statsNav.semanaOffset)
     return {
@@ -226,68 +245,6 @@ export default function HistorialPage() {
     setStatsOpen(true)
   }
 
-  function toggleAddRuta(id) {
-    setAddSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  async function guardarAventuradoHistorial() {
-    setAddMsg('')
-    const nombre = addNombre.trim()
-    if (!nombre) {
-      setAddMsg('Indica el nombre completo.')
-      return
-    }
-    const rutaIds = [...addSelected]
-    if (rutaIds.length === 0) {
-      setAddMsg('Marca al menos una ruta asistida.')
-      return
-    }
-    setAddBusy(true)
-    try {
-      const inserts = []
-      for (const rutaId of rutaIds) {
-        const ruta = rutas.find((r) => r.id === rutaId)
-        if (!ruta) continue
-        const yaExiste = participantes.some(
-          (p) =>
-            String(p.nombre || '').trim().toLowerCase() === nombre.toLowerCase() &&
-            (p.rutaId === rutaId || p.ruta_id === rutaId),
-        )
-        if (yaExiste) continue
-        inserts.push({
-          nombre,
-          lider: nombre,
-          ruta_id: rutaId,
-          ruta_nombre: ruta.nombre,
-          asiste: true,
-        })
-      }
-      if (inserts.length === 0) {
-        setAddMsg('Esas rutas ya figuran para esta persona.')
-        setAddBusy(false)
-        return
-      }
-      const { error: insErr } = await supabase
-        .from('participantes')
-        .insert(inserts)
-      if (insErr) throw insErr
-      await loadAll()
-      setAddNombre('')
-      setAddSelected(new Set())
-      setAddOpen(false)
-    } catch (e) {
-      console.error(e)
-      setAddMsg(e?.message || 'Error al guardar.')
-    } finally {
-      setAddBusy(false)
-    }
-  }
-
   const mostrarAdelanteSem = statsNav.semanaOffset < 0
   const mostrarAdelanteMes = statsNav.mesOffset < 0
   const mostrarAtrasSem =
@@ -298,30 +255,6 @@ export default function HistorialPage() {
   return (
     <section className="sa-page">
       <div className="mb-4 flex flex-col gap-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={personaHistorialInput}
-            onChange={(e) => setPersonaHistorialInput(e.target.value)}
-            placeholder="Nombre → historial completo…"
-            className="sa-field min-w-0 flex-1 py-2.5 text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const n = personaHistorialInput.trim()
-              if (!n) {
-                toast('Escribe el nombre del aventurero.', 'info')
-                return
-              }
-              setHistorialPersonaNombre(n)
-            }}
-            className="shrink-0 rounded-xl border border-emerald-500/35 bg-emerald-500/20 px-3 py-2.5 text-lg leading-none text-emerald-100"
-            title="Ver historial, WhatsApp y añadir ruta"
-          >
-            📜
-          </button>
-        </div>
         <input
           type="search"
           value={search}
@@ -332,21 +265,10 @@ export default function HistorialPage() {
         <button
           type="button"
           onClick={abrirStats}
-          className="w-full rounded-xl border border-white/15 bg-white/[0.06] py-2.5 text-sm font-semibold text-white hover:bg-white/10"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2.5 text-sm font-semibold text-white hover:bg-white/10"
         >
-          📊 Estadísticas de historial
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setAddMsg('')
-            setAddNombre('')
-            setAddSelected(new Set())
-            setAddOpen(true)
-          }}
-          className="w-full rounded-xl border border-emerald-500/35 bg-emerald-500/15 py-2.5 text-sm font-bold text-emerald-100"
-        >
-          ➕ Añadir aventurado al historial
+          <BarChart3 className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          Estadísticas de historial
         </button>
       </div>
 
@@ -369,7 +291,9 @@ export default function HistorialPage() {
 
       {!loading && !error && rutasArchivadasFiltradas.length === 0 ? (
         <div className="sa-card p-10 text-center">
-          <div className="text-4xl">📚</div>
+          <div className="flex justify-center">
+            <BookOpen className="h-14 w-14 text-slate-600" strokeWidth={1.25} aria-hidden />
+          </div>
           <p className="mt-3 text-sm text-slate-400">
             {search.trim()
               ? 'Ninguna ruta archivada coincide con la búsqueda.'
@@ -408,16 +332,20 @@ export default function HistorialPage() {
                 <div className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-extrabold text-white">
-                        🏔️ {ruta.nombre}{' '}
+                      <div className="flex items-start gap-1.5 font-extrabold text-white">
+                        <Mountain className="mt-0.5 h-4 w-4 shrink-0 text-teal-400/90" strokeWidth={2} aria-hidden />
+                        <span className="min-w-0">
+                        {ruta.nombre}{' '}
                         {idCorto ? (
                           <span className="text-xs font-normal text-slate-500">
                             {idCorto}
                           </span>
                         ) : null}
+                        </span>
                       </div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        📅 {formatRutaDate(ruta.fecha)}
+                      <div className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                        <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                        {formatRutaDate(ruta.fecha)}
                       </div>
                     </div>
                     <span className="shrink-0 rounded-full border border-slate-600/80 bg-slate-800/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
@@ -425,21 +353,24 @@ export default function HistorialPage() {
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-                    <span>
-                      💰 Bs {fmtBs(recaudado)}
+                    <span className="inline-flex items-center gap-1">
+                      <Banknote className="h-3.5 w-3.5 shrink-0 text-emerald-400/90" strokeWidth={2} aria-hidden />
+                      Bs {fmtBs(recaudado)}
                       {totalDolares > 0
                         ? ` + $${fmtBs(totalDolares)}`
                         : ''}
                     </span>
-                    <span className="text-rose-400">
-                      💸 Bs {fmtBs(gastosRuta)}
+                    <span className="inline-flex items-center gap-1 text-rose-400">
+                      <TrendingDown className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                      Bs {fmtBs(gastosRuta)}
                     </span>
                     <span
-                      className={
+                      className={`inline-flex items-center gap-1 ${
                         profitNeto >= 0 ? 'font-semibold text-emerald-400' : 'font-semibold text-rose-400'
-                      }
+                      }`}
                     >
-                      📊 Bs {fmtBs(profitNeto)}
+                      <BarChart3 className="h-3.5 w-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+                      Bs {fmtBs(profitNeto)}
                     </span>
                   </div>
                 </div>
@@ -480,8 +411,9 @@ export default function HistorialPage() {
                     {cuposRes > 0 ? (
                       <div className="mt-3">
                         <div className="mb-1 flex justify-between text-xs text-slate-400">
-                          <span>
-                            📋 Asistencia: {presentes}/{cuposRes} presentes
+                          <span className="inline-flex items-center gap-1">
+                            <ClipboardList className="h-3.5 w-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+                            Asistencia: {presentes}/{cuposRes} presentes
                           </span>
                           <span className="font-semibold">{pctAsist}%</span>
                         </div>
@@ -495,8 +427,9 @@ export default function HistorialPage() {
                     ) : null}
 
                     <div className="mt-4">
-                      <div className="mb-2 text-sm font-bold text-teal-300/90">
-                        👥 Reservas y participantes
+                      <div className="mb-2 flex items-center gap-1.5 text-sm font-bold text-teal-300/90">
+                        <Users className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                        Reservas y participantes
                       </div>
                       {reservasRuta.length === 0 ? (
                         <p className="rounded-lg border border-white/10 bg-white/[0.03] py-4 text-center text-xs text-slate-500">
@@ -522,8 +455,9 @@ export default function HistorialPage() {
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <div className="font-bold text-white">
-                                      👤 {reserva.lider}
+                                    <div className="flex items-center gap-1.5 font-bold text-white">
+                                      <User className="h-4 w-4 shrink-0 text-teal-400/90" strokeWidth={2} aria-hidden />
+                                      {reserva.lider}
                                     </div>
                                     <div className="mt-1 text-[11px] text-slate-500">
                                       Cupos: {getCuposReserva(reserva)} · Pagado:
@@ -542,9 +476,14 @@ export default function HistorialPage() {
                                     {lista.map((p) => (
                                       <span
                                         key={p.id}
-                                        className={`rounded-lg border px-2 py-1 text-[11px] ${p.asiste ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.04]'}`}
+                                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] ${p.asiste ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.04]'}`}
                                       >
-                                        {p.asiste ? '✅' : '⭕'} {p.nombre}
+                                        {p.asiste ? (
+                                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" strokeWidth={2} aria-hidden />
+                                        ) : (
+                                          <Circle className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                                        )}
+                                        <span className="min-w-0 truncate">{p.nombre}</span>
                                       </span>
                                     ))}
                                   </div>
@@ -588,153 +527,91 @@ export default function HistorialPage() {
           })}
       </ul>
 
-      {statsOpen ? (
-        <div
-          className="fixed inset-0 z-[10001] flex items-end justify-center bg-black/65 p-3 pt-10 backdrop-blur-sm sm:items-center"
-          role="dialog"
-          aria-modal
-          aria-labelledby="historial-stats-title"
-        >
-          <div className="sa-card max-h-[85vh] w-full max-w-[480px] overflow-y-auto p-4 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2
-                id="historial-stats-title"
-                className="m-0 text-sm font-extrabold text-white"
-              >
-                📊 Estadísticas (archivadas)
-              </h2>
-              <button
-                type="button"
-                onClick={() => setStatsOpen(false)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"
-                aria-label="Cerrar"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <StatsCard
-              label={statsSemana.label}
-              headerPrefix="📅"
-              stats={statsSemana.data}
-              onPrev={
-                mostrarAtrasSem ? () => navegarStats('semana', -1) : null
-              }
-              onNext={
-                mostrarAdelanteSem ? () => navegarStats('semana', 1) : null
-              }
-            />
-            <div className="h-3" />
-            <StatsCard
-              label={statsMes.label}
-              headerPrefix="📆"
-              stats={statsMes.data}
-              onPrev={mostrarAtrasMes ? () => navegarStats('mes', -1) : null}
-              onNext={mostrarAdelanteMes ? () => navegarStats('mes', 1) : null}
-            />
-            <p className="mt-3 text-center text-[10px] text-slate-500">
-              Solo rutas archivadas, por fecha de la ruta.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {addOpen ? (
-        <div
-          className="fixed inset-0 z-[10001] flex items-end justify-center bg-black/65 p-3 pt-16 backdrop-blur-sm sm:items-center"
-          role="dialog"
-          aria-modal
-          aria-labelledby="historial-add-title"
-        >
-          <div className="sa-card max-h-[85vh] w-full max-w-[480px] overflow-y-auto p-4 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2
-                id="historial-add-title"
-                className="m-0 text-sm font-extrabold text-white"
-              >
-                ➕ Añadir al historial
-              </h2>
-              <button
-                type="button"
-                onClick={() => setAddOpen(false)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"
-                aria-label="Cerrar"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="text-xs text-slate-500">
-              Registra asistencias en rutas pasadas o archivadas (misma lógica
-              que la app HTML).
-            </p>
-            <input
-              type="text"
-              value={addNombre}
-              onChange={(e) => setAddNombre(e.target.value)}
-              placeholder="Nombre completo"
-              className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-500/40"
-            />
-            <div className="mt-3 max-h-48 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-2">
-              {rutasParaAlta.length === 0 ? (
-                <p className="text-xs text-slate-500">
-                  No hay rutas pasadas o archivadas.
-                </p>
-              ) : (
-                rutasParaAlta.map((r) => (
-                  <label
-                    key={r.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-white/5"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={addSelected.has(r.id)}
-                      onChange={() => toggleAddRuta(r.id)}
-                      className="rounded border-white/20"
-                    />
-                    <span className="text-slate-200">
-                      {r.nombre}
-                      {r.fecha ? (
-                        <span className="text-slate-500">
-                          {' '}
-                          — {formatRutaDate(r.fecha)}
-                        </span>
-                      ) : null}
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-            {addMsg ? (
-              <p className="mt-2 text-center text-xs text-amber-200/90">
-                {addMsg}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              disabled={addBusy}
-              onClick={() => void guardarAventuradoHistorial()}
-              className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+      {statsOpen
+        ? createPortal(
+            <div
+              className={saModalBackdropClass('historialStats')}
+              role="presentation"
+              onClick={() => setStatsOpen(false)}
             >
-              {addBusy ? 'Guardando…' : 'Guardar'}
-            </button>
-          </div>
-        </div>
-      ) : null}
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="historial-stats-title"
+                className={SA_MODAL_PANEL_SCROLL}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <h2
+                    id="historial-stats-title"
+                    className="m-0 flex items-center gap-2 text-lg font-extrabold tracking-tight text-white"
+                  >
+                    <BarChart3
+                      className="h-5 w-5 shrink-0 text-teal-400/90"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    Estadísticas — Rutas
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setStatsOpen(false)}
+                    className={SA_MODAL_BTN_CLOSE}
+                    aria-label="Cerrar"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="my-4 border-t border-white/10" />
 
-      {historialPersonaNombre != null ? (
-        <PersonHistorialModal
-          nombre={historialPersonaNombre}
-          participantes={participantes}
-          rutas={rutas}
-          onClose={() => setHistorialPersonaNombre(null)}
-          onAfterChange={() => void loadAll()}
-        />
-      ) : null}
+                <StatsCard
+                  label={statsSemana.label}
+                  headerIcon={
+                    <Calendar
+                      className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                  }
+                  stats={statsSemana.data}
+                  onPrev={
+                    mostrarAtrasSem ? () => navegarStats('semana', -1) : null
+                  }
+                  onNext={
+                    mostrarAdelanteSem ? () => navegarStats('semana', 1) : null
+                  }
+                />
+                <div className="h-3" />
+                <StatsCard
+                  label={statsMes.label}
+                  headerIcon={
+                    <CalendarDays
+                      className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                  }
+                  stats={statsMes.data}
+                  onPrev={
+                    mostrarAtrasMes ? () => navegarStats('mes', -1) : null
+                  }
+                  onNext={
+                    mostrarAdelanteMes ? () => navegarStats('mes', 1) : null
+                  }
+                />
+                <p className="mt-4 text-center text-[10px] text-slate-500">
+                  Solo rutas archivadas, por fecha de la ruta.
+                </p>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </section>
   )
 }
 
-function StatsCard({ label, headerPrefix, stats, onPrev, onNext }) {
+function StatsCard({ label, headerIcon, stats, onPrev, onNext }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -742,28 +619,29 @@ function StatsCard({ label, headerPrefix, stats, onPrev, onNext }) {
           <button
             type="button"
             onClick={onPrev}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-sm text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-white transition-colors hover:border-teal-400/30 hover:bg-teal-500/15 hover:text-teal-100 active:scale-[0.96]"
             title="Anterior"
           >
-            ←
+            <ChevronLeft className="h-4 w-4" strokeWidth={2.25} aria-hidden />
           </button>
         ) : (
-          <span className="w-7 shrink-0" />
+          <span className="w-8 shrink-0" />
         )}
-        <span className="min-w-0 flex-1 text-center text-xs font-bold text-slate-200">
-          {headerPrefix} {label}
+        <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-center text-xs font-bold text-slate-200">
+          {headerIcon}
+          <span className="min-w-0">{label}</span>
         </span>
         {onNext ? (
           <button
             type="button"
             onClick={onNext}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-sm text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-white transition-colors hover:border-teal-400/30 hover:bg-teal-500/15 hover:text-teal-100 active:scale-[0.96]"
             title="Siguiente"
           >
-            →
+            <ChevronRight className="h-4 w-4" strokeWidth={2.25} aria-hidden />
           </button>
         ) : (
-          <span className="w-7 shrink-0" />
+          <span className="w-8 shrink-0" />
         )}
       </div>
       <div className="grid grid-cols-2 gap-2 text-center">

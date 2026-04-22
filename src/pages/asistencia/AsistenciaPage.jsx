@@ -1,4 +1,13 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  MapPin,
+  Ticket,
+  User,
+  Users,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNotify } from '../../context/NotifyContext.jsx'
 import { useGestionRealtime } from '../../hooks/useGestionRealtime'
@@ -118,8 +127,8 @@ export default function AsistenciaPage() {
     [reservas, rutas, search, filtroLider, filtroRutaId],
   )
 
-  const resumenTexto = useMemo(() => {
-    if (!filtroLider && !filtroRutaId) return ''
+  const resumenFiltro = useMemo(() => {
+    if (!filtroLider && !filtroRutaId) return null
     const ruta = rutas.find((r) => r.id === filtroRutaId)
     const rutaNombre = ruta
       ? ruta.nombre
@@ -137,7 +146,7 @@ export default function AsistenciaPage() {
         ).length
       )
     }, 0)
-    return `${rutaNombre ? `📍 ${rutaNombre}` : ''}${rutaNombre && filtroLider ? ' • ' : ''}${filtroLider ? `👤 ${filtroLider}` : ''}${rutaNombre || filtroLider ? ' • ' : ''}🎫 Reservas: ${totalReservas} • 👥 Personas: ${totalPersonas}`
+    return { rutaNombre, filtroLider, totalReservas, totalPersonas }
   }, [filtroLider, filtroRutaId, rutas, reservasVisibles, participantes])
 
   function toggleExpand(cardId) {
@@ -260,9 +269,41 @@ export default function AsistenciaPage() {
         </select>
       </div>
 
-      {filtroLider || filtroRutaId ? (
-        <p className="mb-4 text-[12px] leading-relaxed text-slate-400">
-          {resumenTexto}
+      {resumenFiltro ? (
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] leading-relaxed text-slate-400">
+          {resumenFiltro.rutaNombre ? (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+              {resumenFiltro.rutaNombre}
+            </span>
+          ) : null}
+          {resumenFiltro.rutaNombre && resumenFiltro.filtroLider ? (
+            <span className="text-slate-600" aria-hidden>
+              •
+            </span>
+          ) : null}
+          {resumenFiltro.filtroLider ? (
+            <span className="inline-flex items-center gap-1">
+              <User className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+              {resumenFiltro.filtroLider}
+            </span>
+          ) : null}
+          {resumenFiltro.rutaNombre || resumenFiltro.filtroLider ? (
+            <span className="text-slate-600" aria-hidden>
+              •
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1">
+            <Ticket className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+            Reservas: {resumenFiltro.totalReservas}
+          </span>
+          <span className="text-slate-600" aria-hidden>
+            •
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Users className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+            Personas: {resumenFiltro.totalPersonas}
+          </span>
         </p>
       ) : null}
 
@@ -285,7 +326,13 @@ export default function AsistenciaPage() {
 
       {!loading && !error && reservasVisibles.length === 0 ? (
         <div className="sa-card p-10 text-center shadow-xl shadow-black/25">
-          <div className="text-4xl drop-shadow-md">📋</div>
+          <div className="flex justify-center drop-shadow-md">
+            <ClipboardList
+              className="h-14 w-14 text-slate-500"
+              strokeWidth={1.25}
+              aria-hidden
+            />
+          </div>
           <h3 className="mt-3 text-lg font-extrabold tracking-tight text-white">
             No hay reservas que mostrar
           </h3>
@@ -334,16 +381,27 @@ export default function AsistenciaPage() {
                 <div className="p-4">
                   <div className="flex gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-extrabold text-white">
-                        📍 {ruta.nombre}
-                        {ruta.fecha
-                          ? ` · ${formatRutaDateShort(ruta.fecha)}`
-                          : ''}
+                      <div className="flex items-start gap-1.5 text-sm font-extrabold text-white">
+                        <MapPin
+                          className="mt-0.5 h-4 w-4 shrink-0 text-teal-400/90"
+                          strokeWidth={2}
+                          aria-hidden
+                        />
+                        <span className="min-w-0">
+                          {ruta.nombre}
+                          {ruta.fecha
+                            ? ` · ${formatRutaDateShort(ruta.fecha)}`
+                            : ''}
+                        </span>
                       </div>
-                      <div className="mt-1 text-[13px] text-slate-400">
-                        <span>👤 {reserva.lider}</span>
-                        <span className="ml-2 font-semibold text-slate-300">
-                          📊 {presentes}/{total} presentes
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-400">
+                        <span className="inline-flex items-center gap-1">
+                          <User className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                          {reserva.lider}
+                        </span>
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-300">
+                          <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                          {presentes}/{total} presentes
                         </span>
                       </div>
                       <div className="mt-2 flex items-center gap-3">

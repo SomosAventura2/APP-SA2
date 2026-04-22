@@ -1,3 +1,8 @@
+import {
+  findRutaPorParticipacion,
+  nombreRutaDisplayParticipacion,
+} from './resolverRutaParticipacion'
+
 /** Rango por asistencias totales (misma escala que index.html). */
 export function calcularRangoAventurado(asistenciasTotales) {
   const n = Number(asistenciasTotales) || 0
@@ -24,8 +29,22 @@ export function getSiguienteRango(rango) {
   return null
 }
 
+/** Orden cronológico por día de evento (fecha de ruta o de participación). */
+function timestampOrdenDetalleParticipacion(row) {
+  const s = row.fechaRuta || row.fecha
+  if (s == null || s === '') return null
+  const day = String(s).split('T')[0]
+  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    const [y, m, d] = day.split('-').map(Number)
+    return new Date(y, m - 1, d, 12, 0, 0, 0).getTime()
+  }
+  const t = new Date(s).getTime()
+  return Number.isNaN(t) ? null : t
+}
+
 /**
- * Historial y rango de un aventurero por nombre (usa todas sus filas en `participantes`).
+ * Historial y rango por nombre. Solo cuenta participaciones cuya ruta existe en `rutas`
+ * (activa o archivada); reservas huérfanas (ruta borrada del catálogo) no aparecen.
  * @param {string} nombrePersona
  * @param {Array<Record<string, unknown>>} participantes
  * @param {Array<Record<string, unknown>>} rutas
@@ -55,11 +74,36 @@ export function calcularRutasPorPersona(nombrePersona, participantes, rutas) {
     }
   }
 
-  const totalParticipaciones = todasParticipaciones.length
-  const totalAsistidas = todasParticipaciones.filter((p) => p.asiste === true).length
-  const totalNoAsistidas = todasParticipaciones.filter(
+  /** Solo filas cuya ruta sigue en catálogo (activa o archivada); borradas no entran al historial. */
+  const participaciones = todasParticipaciones.filter((p) =>
+    Boolean(findRutaPorParticipacion(p, rutas)),
+  )
+
+  if (participaciones.length === 0) {
+    return {
+      totalRutas: 0,
+      totalRutasAsistidas: 0,
+      totalTodasLasRutas: 0,
+      totalParticipaciones: 0,
+      totalAsistidas: 0,
+      totalNoAsistidas: 0,
+      porcentajeAsistencia: 0,
+      rutasAsistidas: [],
+      todasLasRutas: [],
+      participacionesDetalladas: [],
+      rango: null,
+      siguienteRango: null,
+      progresoHaciaSiguiente: 0,
+      totalParaSiguiente: 0,
+    }
+  }
+
+  const totalParticipaciones = participaciones.length
+  const totalAsistidas = participaciones.filter((p) => p.asiste === true).length
+  const totalNoAsistidas = participaciones.filter(
     (p) => p.asiste === false,
   ).length
+  /** Igual que app/index.html calcularRutasPorPersona: tasa sobre todas las participaciones. */
   const porcentajeAsistencia =
     totalParticipaciones > 0
       ? ((totalAsistidas / totalParticipaciones) * 100).toFixed(0)
@@ -69,12 +113,9 @@ export function calcularRutasPorPersona(nombrePersona, participantes, rutas) {
   const rutasAsistidasUnicas = new Set()
   const rutasAsistidasDetalle = []
 
-  todasParticipaciones.forEach((p) => {
-    const rutaObj = rutas.find((r) => r.id === (p.rutaId || p.ruta_id))
-    const nombreRuta = (rutaObj && rutaObj.nombre
-      ? rutaObj.nombre
-      : (p.ruta_nombre || p.ruta || '')
-    ).trim()
+  participaciones.forEach((p) => {
+    const rutaObj = findRutaPorParticipacion(p, rutas)
+    const nombreRuta = nombreRutaDisplayParticipacion(p, rutaObj)
     if (!nombreRuta) return
 
     todasLasRutasUnicas.add(nombreRuta)
@@ -82,17 +123,18 @@ export function calcularRutasPorPersona(nombrePersona, participantes, rutas) {
     if (p.asiste === true) {
       if (!rutasAsistidasUnicas.has(nombreRuta)) {
         rutasAsistidasUnicas.add(nombreRuta)
-        const ruta = rutas.find(
-          (r) => r.nombre === nombreRuta || r.id === (p.rutaId || p.ruta_id),
-        )
+        const ruta = rutaObj
         rutasAsistidasDetalle.push({
           nombre: nombreRuta,
-          fecha: ruta ? ruta.fecha : null,
+          fecha: ruta ? ruta.fecha : p.fecha || null,
           archivada: ruta ? ruta.archivada : false,
-          vecesAsistio: todasParticipaciones.filter((pa) => {
-            const ro = rutas.find((r) => r.id === (pa.rutaId || pa.ruta_id))
-            const nr = (ro && ro.nombre ? ro.nombre : pa.ruta_nombre || pa.ruta)
-            return nr === nombreRuta && pa.asiste === true
+          vecesAsistio: participaciones.filter((pa) => {
+            if (!pa.asiste) return false
+            const nombrePa = nombreRutaDisplayParticipacion(
+              pa,
+              findRutaPorParticipacion(pa, rutas),
+            )
+            return nombrePa === nombreRuta
           }).length,
           ultimaAsistencia: p.fecha || null,
           lider: p.lider,
@@ -112,6 +154,35 @@ export function calcularRutasPorPersona(nombrePersona, participantes, rutas) {
   const rango = calcularRangoAventurado(totalAsistidas)
   const siguienteRango = rango ? getSiguienteRango(rango) : null
 
+  const participacionesDetalladas = participaciones
+    .map((p) => {
+      const ro = findRutaPorParticipacion(p, rutas)
+      return {
+        ruta: nombreRutaDisplayParticipacion(p, ro) || null,
+        /** Fecha del evento en catálogo (preferida en UI). */
+        fechaRuta: ro?.fecha ?? null,
+        asiste: p.asiste,
+        fecha: p.fecha,
+        lider: p.lider,
+        rutaId: p.rutaId || p.ruta_id,
+      }
+    })
+    .sort((a, b) => {
+      const ta = timestampOrdenDetalleParticipacion(a)
+      const tb = timestampOrdenDetalleParticipacion(b)
+      if (ta == null && tb == null) {
+        return String(a.rutaId ?? '').localeCompare(String(b.rutaId ?? ''), 'en', {
+          numeric: true,
+        })
+      }
+      if (ta == null) return 1
+      if (tb == null) return -1
+      if (ta !== tb) return ta - tb
+      return String(a.ruta || '').localeCompare(String(b.ruta || ''), 'es', {
+        sensitivity: 'base',
+      })
+    })
+
   return {
     totalRutas: rutasAsistidasCount,
     totalRutasAsistidas: rutasAsistidasCount,
@@ -122,16 +193,7 @@ export function calcularRutasPorPersona(nombrePersona, participantes, rutas) {
     porcentajeAsistencia,
     rutasAsistidas: rutasAsistidasDetalle,
     todasLasRutas: Array.from(todasLasRutasUnicas),
-    participacionesDetalladas: todasParticipaciones.map((p) => ({
-      ruta:
-        (rutas.find((r) => r.id === (p.rutaId || p.ruta_id)) || {}).nombre ||
-        p.ruta_nombre ||
-        p.ruta,
-      asiste: p.asiste,
-      fecha: p.fecha,
-      lider: p.lider,
-      rutaId: p.rutaId || p.ruta_id,
-    })),
+    participacionesDetalladas,
     rango,
     siguienteRango,
     progresoHaciaSiguiente: rango ? totalAsistidas - rango.minRutas : 0,

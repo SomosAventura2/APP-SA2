@@ -1,8 +1,19 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  BarChart3,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  Mountain,
+  ScrollText,
+  Search,
+  TrendingUp,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import PersonHistorialModal from '../../components/PersonHistorialModal'
 import { calcularRutasPorPersona } from '../../lib/aventurero'
 import { useGestionRealtime } from '../../hooks/useGestionRealtime'
+import { formatRutaDateShort } from '../../lib/formatDate'
 import { mapRuta } from '../../lib/rutas'
 import { generarRankingAventurados } from '../../lib/ranking'
 import { supabase } from '../../lib/supabase'
@@ -19,12 +30,12 @@ const BADGE_PNG = {
 
 const RANGO_FILTROS = [
   { value: '', label: 'Todos los rangos' },
-  { value: 'Diamante', label: '✨ Diamante' },
-  { value: 'Platino', label: '💎 Platino' },
-  { value: 'Oro', label: '🥇 Oro' },
-  { value: 'Plata', label: '🥈 Plata' },
-  { value: 'Bronce', label: '🥉 Bronce' },
-  { value: 'Novato', label: '🌱 Novato' },
+  { value: 'Diamante', label: 'Diamante' },
+  { value: 'Platino', label: 'Platino' },
+  { value: 'Oro', label: 'Oro' },
+  { value: 'Plata', label: 'Plata' },
+  { value: 'Bronce', label: 'Bronce' },
+  { value: 'Novato', label: 'Novato' },
 ]
 
 async function fetchRankingBundle() {
@@ -40,12 +51,40 @@ async function fetchRankingBundle() {
   }
 }
 
-function RangoBadge({ rango }) {
+/** Imagen del badge en `public/badges/` o emoji si falla / no hay slug. */
+function RangoBadgeImg({
+  rango,
+  className = 'h-4 w-4 shrink-0 object-contain',
+  emojiClassName = 'text-[12px] leading-none',
+}) {
   const [imgFallo, setImgFallo] = useState(false)
   if (!rango) return null
   const slug = BADGE_PNG[rango.nombre]
   const srcPng = slug ? `/badges/${slug}.png` : null
   const mostrarImg = srcPng && !imgFallo
+  if (mostrarImg) {
+    return (
+      <img
+        src={srcPng}
+        alt=""
+        width={16}
+        height={16}
+        className={className}
+        loading="lazy"
+        decoding="async"
+        onError={() => setImgFallo(true)}
+      />
+    )
+  }
+  return (
+    <span aria-hidden className={emojiClassName}>
+      {rango.emoji}
+    </span>
+  )
+}
+
+function RangoBadge({ rango }) {
+  if (!rango) return null
 
   return (
     <span
@@ -56,22 +95,7 @@ function RangoBadge({ rango }) {
         borderColor: `${rango.color}66`,
       }}
     >
-      {mostrarImg ? (
-        <img
-          src={srcPng}
-          alt=""
-          width={20}
-          height={20}
-          className="h-5 w-5 shrink-0 object-contain"
-          loading="lazy"
-          decoding="async"
-          onError={() => setImgFallo(true)}
-        />
-      ) : (
-        <span aria-hidden className="text-[12px] leading-none">
-          {rango.emoji}
-        </span>
-      )}
+      <RangoBadgeImg rango={rango} />
       <span className="truncate">{rango.nombre}</span>
     </span>
   )
@@ -144,8 +168,8 @@ export default function RankingPage() {
   }
 
   const rankingCompleto = useMemo(
-    () => generarRankingAventurados(participantes),
-    [participantes],
+    () => generarRankingAventurados(participantes, rutas),
+    [participantes, rutas],
   )
 
   const rankingFiltrado = useMemo(() => {
@@ -230,8 +254,9 @@ export default function RankingPage() {
       {!loading && !error ? (
         <>
           <div className="sa-card mb-4 p-4 shadow-lg">
-            <h2 className="m-0 text-sm font-extrabold text-white">
-              📈 Estadísticas globales
+            <h2 className="m-0 flex items-center gap-2 text-sm font-extrabold text-white">
+              <TrendingUp className="h-4 w-4 shrink-0 text-emerald-400/90" strokeWidth={2} aria-hidden />
+              Estadísticas globales
             </h2>
             {rankingCompleto.length === 0 ? (
               <p className="mt-3 text-center text-sm text-slate-400">
@@ -288,12 +313,15 @@ export default function RankingPage() {
           </div>
 
           <div className="sa-card p-4 shadow-lg">
-            <h2 className="m-0 text-sm font-extrabold text-white">
-              📊 Ranking completo
+            <h2 className="m-0 flex items-center gap-2 text-sm font-extrabold text-white">
+              <BarChart3 className="h-4 w-4 shrink-0 text-teal-400/90" strokeWidth={2} aria-hidden />
+              Ranking completo
             </h2>
             {rankingFiltrado.length === 0 ? (
               <div className="mt-6 text-center text-slate-400">
-                <div className="text-3xl">🔍</div>
+                <div className="flex justify-center">
+                  <Search className="h-12 w-12 text-slate-600" strokeWidth={1.25} aria-hidden />
+                </div>
                 <p className="mt-2 text-sm">No hay aventurados que coincidan</p>
               </div>
             ) : (
@@ -356,19 +384,32 @@ export default function RankingPage() {
                               </span>
                               <RangoBadge rango={a.rango} />
                             </div>
-                            <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
-                              <span>🏔️ {a.rutasAsistidas} rutas</span>
-                              <span>
-                                ✅ {a.totalAsistidas}/{a.totalParticipaciones}
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                              <span className="inline-flex items-center gap-1">
+                                <Mountain className="h-3.5 w-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+                                {a.rutasAsistidas} rutas
                               </span>
-                              <span>📊 {a.porcentajeAsistencia}%</span>
+                              <span className="inline-flex items-center gap-1">
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400/90" strokeWidth={2} aria-hidden />
+                                {a.totalAsistidas}/{a.totalParticipaciones}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <BarChart3 className="h-3.5 w-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+                                {a.porcentajeAsistencia}%
+                              </span>
                             </div>
                             {a.siguienteRango ? (
                               <div className="mt-2">
                                 <div className="mb-1 flex justify-between text-[10px] text-slate-500">
-                                  <span>
-                                    Progreso a {a.siguienteRango.emoji}{' '}
-                                    {a.siguienteRango.nombre}
+                                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
+                                    <span>
+                                      Progreso a {a.siguienteRango.nombre}
+                                    </span>
+                                    <RangoBadgeImg
+                                      rango={a.siguienteRango}
+                                      className="inline-block h-[1.1em] w-[1.1em] max-h-[14px] max-w-[14px] shrink-0 object-contain align-middle"
+                                      emojiClassName="inline-block text-[1.1em] leading-none align-middle"
+                                    />
                                   </span>
                                   <span>
                                     {a.progreso}/{a.totalParaSiguiente}
@@ -397,10 +438,10 @@ export default function RankingPage() {
                         <button
                           type="button"
                           onClick={() => setHistorialPersonaNombre(a.nombre)}
-                          className="shrink-0 border-l border-white/10 px-3 py-3 text-base leading-none text-slate-400 transition-colors hover:bg-white/5 hover:text-emerald-300"
+                          className="shrink-0 border-l border-white/10 px-3 py-3 text-slate-400 transition-colors hover:bg-white/5 hover:text-emerald-300"
                           title="Historial completo, WhatsApp y añadir ruta"
                         >
-                          📜
+                          <ScrollText className="h-5 w-5" strokeWidth={2} aria-hidden />
                         </button>
                       </div>
                       {open && hist ? (
@@ -415,17 +456,32 @@ export default function RankingPage() {
                             <ul className="mt-2 max-h-40 list-none space-y-1 overflow-y-auto p-0">
                               {hist.participacionesDetalladas
                                 .slice(0, 12)
-                                .map((row, i) => (
-                                  <li
-                                    key={`${row.ruta}-${i}`}
-                                    className="flex justify-between gap-2 rounded border border-white/[0.05] bg-white/[0.03] px-2 py-1.5"
-                                  >
-                                    <span className="truncate">{row.ruta}</span>
-                                    <span>
-                                      {row.asiste ? '✅' : '⭕'} {row.lider}
-                                    </span>
-                                  </li>
-                                ))}
+                                .map((row, i) => {
+                                  const fechaTxt = formatRutaDateShort(
+                                    row.fechaRuta || row.fecha || '',
+                                  )
+                                  return (
+                                    <li
+                                      key={`${row.rutaId ?? row.ruta}-${i}`}
+                                      className="flex justify-between gap-2 rounded border border-white/[0.05] bg-white/[0.03] px-2 py-1.5"
+                                    >
+                                      <span className="min-w-0 truncate">
+                                        <span className="text-slate-200">{row.ruta}</span>
+                                        {fechaTxt ? (
+                                          <span className="text-slate-500"> · {fechaTxt}</span>
+                                        ) : null}
+                                      </span>
+                                      <span className="inline-flex shrink-0 items-center gap-1">
+                                        {row.asiste ? (
+                                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" strokeWidth={2} aria-hidden />
+                                        ) : (
+                                          <Circle className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                                        )}
+                                        {row.lider}
+                                      </span>
+                                    </li>
+                                  )
+                                })}
                             </ul>
                           ) : null}
                         </div>
@@ -439,10 +495,12 @@ export default function RankingPage() {
         </>
       ) : null}
 
-      <p className="mt-6 text-center text-[11px] text-slate-500">
-        Usa 📜 para el historial completo (WhatsApp y añadir ruta pasada). El
-        desplegable sigue siendo un resumen corto. Subir foto para la landing
-        sigue en la app HTML.
+      <p className="mt-6 flex items-start justify-center gap-1.5 text-center text-[11px] text-slate-500">
+        <ScrollText className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={2} aria-hidden />
+        <span>
+          Toca un aventurero en la lista para abrir su historial completo. El desplegable sigue
+          siendo un resumen corto. Subir foto para la landing sigue en la app HTML.
+        </span>
       </p>
 
       {historialPersonaNombre != null ? (
@@ -450,6 +508,7 @@ export default function RankingPage() {
           nombre={historialPersonaNombre}
           participantes={participantes}
           rutas={rutas}
+          variant="perfil"
           onClose={() => setHistorialPersonaNombre(null)}
           onAfterChange={() => void reloadRankingData()}
         />

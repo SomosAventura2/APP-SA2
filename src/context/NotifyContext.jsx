@@ -7,6 +7,10 @@ import {
   useState,
 } from 'react'
 import { X } from 'lucide-react'
+import {
+  SA_MODAL_PANEL_CONFIRM,
+  saModalBackdropClass,
+} from '../lib/saModalLayout'
 
 const NotifyContext = createContext(null)
 
@@ -29,13 +33,29 @@ export function NotifyProvider({ children }) {
   const [confirmUi, setConfirmUi] = useState(null)
   const confirmResolveRef = useRef(null)
 
-  const toast = useCallback((message, variant = 'info') => {
-    const id = ++toastIdRef.current
-    setToasts((prev) => [...prev, { id, message: String(message), variant }])
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4200)
+  const TOAST_MS = 2800
+  const TOAST_EXIT_MS = 260
+
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
+
+  const toast = useCallback(
+    (message, variant = 'info') => {
+      const id = ++toastIdRef.current
+      setToasts((prev) => [
+        ...prev,
+        { id, message: String(message), variant, exiting: false },
+      ])
+      window.setTimeout(() => {
+        setToasts((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)),
+        )
+        window.setTimeout(() => removeToast(id), TOAST_EXIT_MS)
+      }, TOAST_MS)
+    },
+    [removeToast],
+  )
 
   const confirm = useCallback((/** @type {ConfirmOptions} */ opts) => {
     return new Promise((resolve) => {
@@ -58,8 +78,11 @@ export function NotifyProvider({ children }) {
   }, [])
 
   const dismissToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }, [])
+    setToasts((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)),
+    )
+    window.setTimeout(() => removeToast(id), TOAST_EXIT_MS)
+  }, [removeToast])
 
   return (
     <NotifyContext.Provider value={{ toast, confirm }}>
@@ -73,7 +96,9 @@ export function NotifyProvider({ children }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="sa-motion-toast pointer-events-auto flex max-w-[min(440px,calc(100vw-24px))] items-start gap-3 rounded-[1rem] border px-4 py-3.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.55)] ring-1 ring-inset ring-white/[0.06] backdrop-blur-xl transition-opacity duration-200"
+            className={`pointer-events-auto flex max-w-[min(440px,calc(100vw-24px))] items-start gap-3 rounded-[1rem] border px-4 py-3.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.55)] ring-1 ring-inset ring-white/[0.06] backdrop-blur-xl ${
+              t.exiting ? 'sa-motion-toast-exit' : 'sa-motion-toast'
+            }`}
             role="status"
             style={{
               borderColor:
@@ -107,7 +132,7 @@ export function NotifyProvider({ children }) {
 
       {confirmUi ? (
         <div
-          className="sa-motion-backdrop fixed inset-0 z-[10100] flex items-end justify-center bg-slate-950/75 p-4 pt-16 backdrop-blur-md sm:items-center"
+          className={saModalBackdropClass('confirm')}
           role="presentation"
           onClick={() => finishConfirm(false)}
           onKeyDown={(e) => {
@@ -119,12 +144,12 @@ export function NotifyProvider({ children }) {
             aria-modal="true"
             aria-labelledby={`${baseId}-confirm-title`}
             aria-describedby={`${baseId}-confirm-desc`}
-            className="sa-motion-modal w-full max-w-[400px] rounded-[1.2rem] border border-white/[0.1] bg-gradient-to-b from-white/[0.08] to-white/[0.03] p-6 shadow-[0_28px_64px_-20px_rgba(0,0,0,0.65)] ring-1 ring-inset ring-white/[0.06] backdrop-blur-xl"
+            className={SA_MODAL_PANEL_CONFIRM}
             onClick={(e) => e.stopPropagation()}
           >
             <h2
               id={`${baseId}-confirm-title`}
-              className="m-0 text-base font-extrabold tracking-tight text-white"
+              className="m-0 text-lg font-extrabold tracking-tight text-white"
             >
               {confirmUi.title}
             </h2>

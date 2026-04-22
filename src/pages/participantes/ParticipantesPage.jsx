@@ -1,4 +1,4 @@
-import { History, Trash2 } from 'lucide-react'
+import { Calendar, History, MapPin, Trash2, User, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import PersonHistorialModal from '../../components/PersonHistorialModal'
 import { useNotify } from '../../context/NotifyContext.jsx'
@@ -21,16 +21,53 @@ async function fetchParticipantesBundle() {
   }
 }
 
-function participantePasaFiltroRutaArchivada(p, rutas) {
-  const rutaIdParticipante = p.rutaId || p.ruta_id
-  if (!rutaIdParticipante) {
-    const rutaNombre = (p.ruta_nombre || p.ruta || '').trim()
-    if (!rutaNombre) return true
-    const ruta = rutas.find((r) => r.nombre === rutaNombre)
-    return !ruta || !ruta.archivada
-  }
-  const ruta = rutas.find((r) => r.id === rutaIdParticipante)
-  return !ruta || !ruta.archivada
+/** `public/badges/*.png` — Novato solo emoji (🌱); desde Bronce se usa imagen. */
+const BADGE_PNG_BRONCE_EN_ADELANTE = {
+  Bronce: 'bronce',
+  Plata: 'plata',
+  Oro: 'oro',
+  Platino: 'platino',
+  Diamante: 'diamante',
+}
+
+function ParticipanteRangoBadge({ rango, title }) {
+  const [imgFallo, setImgFallo] = useState(false)
+  const slug =
+    rango?.nombre && rango.nombre !== 'Novato'
+      ? BADGE_PNG_BRONCE_EN_ADELANTE[rango.nombre]
+      : null
+  const srcPng = slug ? `/badges/${slug}.png` : null
+  const mostrarImg = Boolean(srcPng) && !imgFallo
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold"
+      style={{
+        background: `${rango.color}20`,
+        color: rango.color,
+        borderColor: `${rango.color}66`,
+      }}
+      title={title}
+    >
+      {mostrarImg ? (
+        <img
+          src={srcPng}
+          alt=""
+          width={16}
+          height={16}
+          className="h-4 w-4 shrink-0 object-contain"
+          loading="lazy"
+          decoding="async"
+          onError={() => setImgFallo(true)}
+        />
+      ) : (
+        <span aria-hidden className="text-[12px] leading-none">
+          {rango.emoji}
+        </span>
+      )}
+      <span className="truncate">{rango.nombre}</span>
+    </span>
+  )
 }
 
 export default function ParticipantesPage() {
@@ -120,9 +157,8 @@ export default function ParticipantesPage() {
   }, [participantes, rutas])
 
   const listaFiltrada = useMemo(() => {
-    let filtered = [...participantes].filter((p) =>
-      participantePasaFiltroRutaArchivada(p, rutas),
-    )
+    // Rutas archivadas siguen en `rutas` y cuentan como las activas (historial / listado).
+    let filtered = [...participantes]
     const q = search.trim().toLowerCase()
     if (q) {
       filtered = filtered.filter(
@@ -226,7 +262,13 @@ export default function ParticipantesPage() {
 
       {!loading && !error && listaFiltrada.length === 0 ? (
         <div className="sa-card p-10 text-center shadow-xl shadow-black/25">
-          <div className="text-4xl drop-shadow-md">👥</div>
+          <div className="flex justify-center drop-shadow-md">
+            <Users
+              className="h-14 w-14 text-slate-500"
+              strokeWidth={1.25}
+              aria-hidden
+            />
+          </div>
           <h3 className="mt-3 text-lg font-extrabold tracking-tight text-white">
             No hay personas registradas
           </h3>
@@ -263,7 +305,7 @@ export default function ParticipantesPage() {
             )
             const rango = historial?.rango
             const tooltipRango = rango
-              ? `${rango.emoji} ${rango.nombre}\n• Rutas asistidas: ${historial.totalRutas}\n• Participaciones: ${historial.totalParticipaciones}\n• Asistencias: ${historial.totalAsistidas} ✅\n• Ausencias: ${historial.totalNoAsistidas} ❌\n• Tasa: ${historial.porcentajeAsistencia}%`
+              ? `${rango.emoji} ${rango.nombre}\n• Rutas asistidas: ${historial.totalRutas}\n• Participaciones: ${historial.totalParticipaciones}\n• Asistencias: ${historial.totalAsistidas}\n• Ausencias: ${historial.totalNoAsistidas}\n• Tasa: ${historial.porcentajeAsistencia}%`
               : ''
 
             const asisteKnown = p.asiste === true || p.asiste === false
@@ -277,17 +319,10 @@ export default function ParticipantesPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-white">{p.nombre}</span>
                     {rango ? (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold"
-                        style={{
-                          background: `${rango.color}20`,
-                          color: rango.color,
-                          borderColor: `${rango.color}66`,
-                        }}
+                      <ParticipanteRangoBadge
+                        rango={rango}
                         title={tooltipRango}
-                      >
-                        {rango.emoji} {rango.nombre}
-                      </span>
+                      />
                     ) : null}
                     {asisteKnown ? (
                       <span
@@ -303,9 +338,20 @@ export default function ParticipantesPage() {
                     ) : null}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-slate-400">
-                    <span>👤 {p.lider}</span>
-                    <span>📍 {rutaNombre}</span>
-                    {rutaFecha ? <span>📅 {rutaFecha}</span> : null}
+                    <span className="inline-flex items-center gap-1">
+                      <User className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                      {p.lider}
+                    </span>
+                    <span className="inline-flex min-w-0 items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                      <span className="truncate">{rutaNombre}</span>
+                    </span>
+                    {rutaFecha ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
+                        {rutaFecha}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5 self-center">
@@ -337,9 +383,12 @@ export default function ParticipantesPage() {
       </ul>
 
       {!loading && !error && listaFiltrada.length > 0 ? (
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-slate-500">
-          Historial completo con 📜. Eliminar fila quita solo esa fila en
-          Supabase (permisos RLS).
+        <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-[11px] leading-relaxed text-slate-500">
+          <History className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={2} aria-hidden />
+          <span>
+            Historial completo con el botón de historial. Eliminar fila quita solo esa fila en
+            Supabase (permisos RLS).
+          </span>
         </p>
       ) : null}
 

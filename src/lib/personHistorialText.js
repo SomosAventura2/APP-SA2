@@ -67,3 +67,37 @@ export function buildPersonHistorialShareText(nombrePersona, historial) {
 
   return mensaje
 }
+
+/**
+ * Texto corto para WhatsApp desde el perfil de ranking (verDetalleAventurero en app/index.html).
+ * @param {string} nombrePersona
+ * @param {Record<string, unknown>} historial resultado de calcularRutasPorPersona
+ */
+export function buildRankingHistorialShareText(nombrePersona, historial) {
+  if (!historial?.rango) return ''
+
+  const nombre = nombrePersona || ''
+  let textoShare = `*${historial.rango.emoji} ${historial.rango.nombre}*\n\n`
+  textoShare += `👤 ${(nombre || '').replace(/\*/g, '')}\n\n`
+  textoShare += `📊 *Estadísticas* (rango por asistencias)\n`
+  textoShare += `• Rutas diferentes: ${historial.totalRutas}\n`
+  textoShare += `• Participaciones: ${historial.totalParticipaciones}\n\n`
+
+  if (historial.rutasAsistidas?.length > 0) {
+    textoShare += `🏔️ *Rutas asistidas:*\n`
+    historial.rutasAsistidas.slice(0, 15).forEach((r) => {
+      const veces = r.vecesAsistio || 1
+      const sufijo = veces > 1 ? ` x${veces}` : ''
+      textoShare += `• ${(r.nombre || '').replace(/\*/g, '')}${sufijo}\n`
+    })
+    if (historial.rutasAsistidas.length > 15)
+      textoShare += `• +${historial.rutasAsistidas.length - 15} más\n`
+  }
+
+  if (historial.siguienteRango) {
+    const faltan = historial.siguienteRango.minRutas - historial.totalAsistidas
+    textoShare += `\n🎯 Próximo rango: ${historial.siguienteRango.emoji} ${historial.siguienteRango.nombre} (faltan ${faltan} asistencias)`
+  }
+
+  return textoShare
+}
